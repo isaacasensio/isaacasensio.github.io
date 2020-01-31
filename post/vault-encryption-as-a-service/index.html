@@ -9,7 +9,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta name="description" content="This is me playing a bit with Vault transit engine.">
 
-	<title>Ramblings from home: Vault: Encryption as a service</title>
+	<title>Rambling experiments at home: Vault: Encryption as a service</title>
 
 	<link rel="canonical" href="https://isaacasensio.github.io/post/vault-encryption-as-a-service/">
 	
@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:site" content="@isaacasensio">
 <meta name="twitter:creator" content="@isaacasensio">
-<meta name="twitter:title" content="Ramblings from home: Vault: Encryption as a service">
+<meta name="twitter:title" content="Rambling experiments at home: Vault: Encryption as a service">
 <meta name="twitter:description" content="This is me playing a bit with Vault transit engine.">
 <meta name="twitter:image" content="https://isaacasensio.github.io/img/share.png">
 <meta name="twitter:domain" content="isaacasensio.github.io">
@@ -35,7 +35,7 @@
 <header>
 	<nav>
 		<ul class="main">
-			<li><a href="https://blog.jessfraz.com">Ramblings from home</a></li>
+			<li><a href="https://isaacasensio.github.io/">Rambling experiments at home</a></li>
 		</ul>
 		<ul class="social">
 			
@@ -66,21 +66,26 @@
 
 <p>We might be interested in storing encrypted data in our application but we don&rsquo;t want to deal with stuff like key rolling, authentication and auditing.</p>
 
-<p>I tried to split this post in two</p>
+<p>I tried to split this post in two sections:</p>
 
-<p>Dev server</p>
+<ol>
+<li>Intro to Vault transit secret engine by using only the command line.</li>
+<li>How to use it inside your application.</li>
+</ol>
 
-<ul>
-<li><p>It is initialised and unsealed.</p>
+<h2 id="vault-transit-engine-playground-command-line-only">Vault transit engine playground - command line only</h2>
 
-<pre><code>    docker run --rm --cap-add=IPC_LOCK \
+<p>As you might expect, our first command will spin up a Vault Dev server:</p>
+
+<pre><code>```
+    docker run --rm --cap-add=IPC_LOCK \
             -p8200:8200 \
             -e VAULT_ADDR=http://127.0.0.1:8200 \
             -d --name=dev-vault vault
+```
 </code></pre>
 
-<p>The container will attempt to lock memory to prevent sensitive values from being swapped to disk and as a result must have &ndash;cap-add=IPC_LOCK provided to docker run.</p></li>
-</ul>
+<p>The container will attempt to lock memory to prevent sensitive values from being swapped to disk and as a result must have &ndash;cap-add=IPC_LOCK provided to docker run.</p>
 
 <p>Run the following command to verify that we can connect to our Vault dev server:</p>
 
@@ -150,7 +155,7 @@ ciphertext    vault:v1:eJ1B98oNEgARhh6iymE6P/0+BzCAey4RzxmRHFcz4xzwKahKLqeDF+U3K
 
 <h2 id="demo-application">Demo application</h2>
 
-<p>I basically built a silly app in Go that saves or retrieves customer data. This customer data contains a credit card number field that we want to store it encrypted in our database, and retrieve it as a plain text.</p>
+<p>I basically built a silly app in Go which saves or retrieves customer data. This customer data contains a credit card number field that we want to store it encrypted in our database, and retrieve it as a plain text.</p>
 
 <p><strong>Getting account in plain text from database</strong></p>
 
