@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on Ramblings from home</title>
+    <link>https://isaacasensio.github.io/post/</link>
+    <description>Recent content in Posts on Ramblings from home</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-gb</language>
+    <lastBuildDate>Mon, 02 Dec 2019 06:09:26 -0700</lastBuildDate>
+    
+	<atom:link href="https://isaacasensio.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Vault: Encryption as a service</title>
+      <link>https://isaacasensio.github.io/post/vault-encryption-as-a-service/</link>
+      <pubDate>Mon, 02 Dec 2019 06:09:26 -0700</pubDate>
+      
+      <guid>https://isaacasensio.github.io/post/vault-encryption-as-a-service/</guid>
+      <description>Last week I took a look at Vault&amp;rsquo;s transit secrets engine. This engine handles cryptographic functions on data-in-transit, which means that Vault doesn&amp;rsquo;t store the data sent to the secrets engine, it only encrypts or decrypts the requested data and sends it back to the requester. It can also be viewed as encryption as a service.
+Why would we need this? We might be interested in storing encrypted data in our application but we don&amp;rsquo;t want to deal with stuff like key rolling, authentication and auditing.</description>
+    </item>
+    
+  </channel>
+</rss>

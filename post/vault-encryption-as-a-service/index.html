@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+
+
+
+ <html class="no-js" lang="en"> 
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="description" content="This is me playing a bit with Vault transit engine.">
+
+	<title>Ramblings from home: Vault: Encryption as a service</title>
+
+	<link rel="canonical" href="https://isaacasensio.github.io/post/vault-encryption-as-a-service/">
+	
+
+	
+<meta property="twitter:account_id" content="125453913" />
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@isaacasensio">
+<meta name="twitter:creator" content="@isaacasensio">
+<meta name="twitter:title" content="Ramblings from home: Vault: Encryption as a service">
+<meta name="twitter:description" content="This is me playing a bit with Vault transit engine.">
+<meta name="twitter:image" content="https://isaacasensio.github.io/img/share.png">
+<meta name="twitter:domain" content="isaacasensio.github.io">
+
+	<link rel="shortcut icon" href="https://isaacasensio.github.io/favicon.ico">
+
+    <link href="https://fonts.googleapis.com/css?family=IBM+Plex+Mono:400,400i|IBM+Plex+Sans:100,100i,400,400i,700,700i" rel="stylesheet">
+	<link rel="stylesheet" href="https://isaacasensio.github.io/css/site.min.css" />
+	<script src="https://isaacasensio.github.io/js/lib/modernizr-2.6.2.min.js"></script>
+</head>
+<body onload="doPrettyPrint()">
+
+<header>
+	<nav>
+		<ul class="main">
+			<li><a href="https://blog.jessfraz.com">Ramblings from home</a></li>
+		</ul>
+		<ul class="social">
+			
+			<li>
+				<a class="fa fa-linkedin" href="https://www.linkedin.com/in/isaacasensio/" target="_blank"></a>
+			</li>
+			<li>
+				<a class="fa fa-github" href="https://github.com/isaacasensio" target="_blank"></a>
+			</li>
+			<li>
+				<a class="fa fa-twitter" href="https://twitter.com/isaacasensio" target="_blank"></a>
+			</li>
+		</ul>
+	</nav>
+</header>
+
+
+
+<div class="container single">
+	<article>
+        <h1>Vault: Encryption as a service</h1>
+		<div class="time">Monday, December 2, 2019</div>
+		
+
+<p>Last week I took a look at Vault&rsquo;s transit secrets engine. This engine handles cryptographic functions on data-in-transit, which means that Vault doesn&rsquo;t store the data sent to the secrets engine, it only encrypts or decrypts the requested data and sends it back to the requester. It can also be viewed as encryption as a service.</p>
+
+<h2 id="why-would-we-need-this">Why would we need this?</h2>
+
+<p>We might be interested in storing encrypted data in our application but we don&rsquo;t want to deal with stuff like key rolling, authentication and auditing.</p>
+
+<p>I tried to split this post in two</p>
+
+<p>Dev server</p>
+
+<ul>
+<li><p>It is initialised and unsealed.</p>
+
+<pre><code>    docker run --rm --cap-add=IPC_LOCK \
+            -p8200:8200 \
+            -e VAULT_ADDR=http://127.0.0.1:8200 \
+            -d --name=dev-vault vault
+</code></pre>
+
+<p>The container will attempt to lock memory to prevent sensitive values from being swapped to disk and as a result must have &ndash;cap-add=IPC_LOCK provided to docker run.</p></li>
+</ul>
+
+<p>Run the following command to verify that we can connect to our Vault dev server:</p>
+
+<pre><code>docker exec dev-vault vault status
+</code></pre>
+
+<p>Execute the next command to enable transit secret engine in Vault:</p>
+
+<pre><code>docker exec --user=vault dev-vault vault secrets enable transit
+</code></pre>
+
+<p>We are using vault user because Vault will automatically pick up our root token from $HOME/.vault-token. For this test, we are using root tokens to enable transit, but ideally, root tokens are only used for initial setup or in emergencies. As a best practice, use tokens with appropriate set of policies.</p>
+
+<p>The transit secrets engine handles cryptographic functions on data in-transit. It is some kind of &ldquo;encryption as a service&rdquo;. We will use transit to encrypt data from applications and store it somewhere else.</p>
+
+<p>As before, we can type the following command to verify that the transit engine has been enabled:</p>
+
+<pre><code>docker exec --user=vault dev-vault vault secrets list
+</code></pre>
+
+<p>You should see something like this:</p>
+
+<pre><code>Path          Type         Accessor              Description
+----          ----         --------              -----------
+cubbyhole/    cubbyhole    cubbyhole_0b4ecf6d    per-token private secret storage
+identity/     identity     identity_c840e86d     identity store
+secret/       kv           kv_2fe5909d           key/value secret storage
+sys/          system       system_bf6af665       system endpoints used for control, policy and debugging
+**transit/      transit      transit_b0d7ce90      n/a**
+</code></pre>
+
+<p>Nice! transit engine is working, but before creating an encryption key ring for our application, we should create a new api token by running the following command:</p>
+
+<pre><code>docker exec --user=vault dev-vault vault token create
+</code></pre>
+
+<p>Same as above, use policies to restrict the scope of your token. For simplicity reasons we are not using any in this example.</p>
+
+<p>Now that we have our new token, we can run the following command to generate our application encryption key:</p>
+
+<pre><code>docker exec -e VAULT_TOKEN=API-TOKEN dev-vault \
+        vault write -f transit/keys/my-app
+</code></pre>
+
+<p>Once the encryption key is generated we can start encrypting/decrypting data by running the following commands:</p>
+
+<pre><code>docker exec -e VAULT_TOKEN=API-TOKEN dev-vault \
+        vault write transit/encrypt/my-app plaintext=$(base64 &lt;&lt;&lt; &quot;this is a secret&quot;)
+</code></pre>
+
+<p>Previous command output should look like below:</p>
+
+<pre><code>Key           Value
+---           -----
+ciphertext    vault:v1:eJ1B98oNEgARhh6iymE6P/0+BzCAey4RzxmRHFcz4xzwKahKLqeDF+U3Kap5
+</code></pre>
+
+<p>Now you can decrypt this ciphertext by running:</p>
+
+<pre><code>docker exec -e VAULT_TOKEN=API-TOKEN dev-vault \
+            vault write transit/decrypt/my-app \
+            ciphertext=&quot;vault:v1:eJ1B98oNEgARhh6iymE6P/0+BzCAey4RzxmRHFcz4xzwKahKLqeDF+U3Kap5&quot; \
+        -format=json | jq -r .data.plaintext | base64 -d
+</code></pre>
+
+<p>Ok, everything seems to work, but how can we integrate all of this into our app?.</p>
+
+<h2 id="demo-application">Demo application</h2>
+
+<p>I basically built a silly app in Go that saves or retrieves customer data. This customer data contains a credit card number field that we want to store it encrypted in our database, and retrieve it as a plain text.</p>
+
+<p><strong>Getting account in plain text from database</strong></p>
+
+<p>Our credit card number is stored encrypted in our customer table. After retrieving the specific customer, we need to decrypt that value and return a new customer instance with the account number in plain text.</p>
+
+<pre><code>func (s *service) GetCustomer(id int64) (*Customer, error){
+    c, err := s.cR.GetCustomer(id)
+    if err != nil {
+        return nil, fmt.Errorf(&quot;fetching customer %d failed: %w&quot;, id, err)
+    }
+
+    dacc, err := s.d.Decrypt(string(c.AccountNumber))
+    if err != nil {
+        return nil, fmt.Errorf(&quot;decryption failed: %w&quot;, err)
+    }
+
+    return &amp;Customer{
+        Id:            c.Id,
+        Name:          c.Name,
+        AccountNumber: AccountNumber(dacc),
+    }, nil
+}
+</code></pre>
+
+<p><strong>Storing account encrypted</strong></p>
+
+<p>Here we need to encrypt first our credit card number before saving all customer data into our database.</p>
+
+<pre><code>func (s *service) AddCustomer(c Customer) (int64, error) {
+    accEncrypted, err := s.e.Encrypt(string(c.AccountNumber))
+    if err != nil {
+        return 0, fmt.Errorf(&quot;encryption failed: %w&quot;, err)
+    }
+
+    ec := Customer{
+        Name:          c.Name,
+        AccountNumber: AccountNumber(accEncrypted),
+    }
+
+    return s.cR.AddCustomer(ec)
+}
+</code></pre>
+
+<p><strong>How encryption looks?</strong></p>
+
+<pre><code>func (c *client) Encrypt(input string) (string, error) {
+    path := fmt.Sprintf(&quot;transit/encrypt/%s&quot;, c.keyName)
+    data := map[string]interface{} {
+        &quot;plaintext&quot; : base64.StdEncoding.EncodeToString([]byte(input)),
+    }
+
+    secret, err := c.vc.Logical().Write(path, data)
+    if err != nil {
+        return &quot;&quot;, errors.Wrap(err, &quot;can't encrypt data&quot;)
+    }
+
+    if cipherText, ok := secret.Data[&quot;ciphertext&quot;].(string); ok &amp;&amp; cipherText != &quot;&quot; {
+        return cipherText, nil
+    }
+    return &quot;&quot;, errors.New(&quot;encryption failed. ciphertext is empty or not a string&quot;)
+}
+</code></pre>
+
+<p><strong>What about decryption?</strong></p>
+
+<pre><code>func (c *client) Decrypt(encryptedText string) (string, error) {
+    path := fmt.Sprintf(&quot;transit/decrypt/%s&quot;, c.keyName)
+    data := map[string]interface{} {
+        &quot;ciphertext&quot; : encryptedText,
+    }
+
+    secret, err := c.vc.Logical().Write(path, data)
+    if err != nil {
+        return &quot;&quot;, errors.Wrap(err, &quot;can't decrypt data&quot;)
+    }
+
+    if plainText, ok := secret.Data[&quot;plaintext&quot;].(string); ok &amp;&amp; plainText != &quot;&quot; {
+        decodeString, err := base64.StdEncoding.DecodeString(plainText)
+        if err != nil {
+            return &quot;&quot;, err
+        }
+        return string(decodeString), nil
+    }
+    return &quot;&quot;, errors.New(&quot;decryption failed. plaintext is empty or not a string&quot;)
+}
+</code></pre>
+
+<p>You can find the complete example here:</p>
+
+	</article>
+</div>
+
+	<footer>&copy; Isaac Asensio 2020
+		<a class="pull-right" href="https://twitter.com/isaacasensio" target="_blank">@isaacasensio</a>
+	</footer>
+
+	<script src="https://isaacasensio.github.io/js/site.min.js"></script>
+
+    <script>
+        function doPrettyPrint(){
+            pres=document.getElementsByTagName('pre');
+            for (i=0; i < pres.length; i++) {
+                pres[i].className+=" prettyprint";
+            }
+            prettyPrint();
+        }
+    </script>
+
+</body>
+</html>
+
